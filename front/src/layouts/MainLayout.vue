@@ -1,0 +1,332 @@
+<template>
+  <q-layout view="lHh Lpr lFf">
+    <!-- HEADER -->
+    <q-header class="app-header">
+      <q-toolbar>
+        <q-btn
+          flat
+          color="primary"
+          :icon="leftDrawerOpen ? 'keyboard_double_arrow_left' : 'keyboard_double_arrow_right'"
+          aria-label="Menu"
+          @click="toggleLeftDrawer"
+          unelevated
+          dense
+        />
+        <div class="row items-center q-gutter-sm">
+          <div class="text-subtitle1 text-weight-medium" style="line-height: 0.9">
+            {{ companyName }}
+          </div>
+        </div>
+
+        <q-space />
+
+        <q-btn-dropdown flat unelevated no-caps dropdown-icon="expand_more">
+          <template v-slot:label>
+            <div class="header-user row items-center no-wrap">
+              <q-avatar rounded size="30px" style="border:2px solid #DCE6EF">
+                <img :src="$store.user.avatar ? $imgBase + '/images/' + $store.user.avatar : $imgBase + '/images/default.png'"
+                     style="object-fit:cover;width:100%;height:100%"
+                     @error="$event.target.src = $imgBase + '/images/default.png'" />
+              </q-avatar>
+              <div class="text-left" style="line-height: 1">
+                <div class="ellipsis" style="max-width: 130px;">
+                  {{ $store.user.username }}
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <q-separator />
+
+          <q-item clickable v-ripple @click="logout" v-close-popup>
+            <q-item-section avatar>
+              <q-icon name="logout" />
+            </q-item-section>
+            <q-item-section>
+              <q-item-label>Salir</q-item-label>
+            </q-item-section>
+          </q-item>
+        </q-btn-dropdown>
+      </q-toolbar>
+    </q-header>
+
+    <!-- DRAWER -->
+    <q-drawer
+      v-model="leftDrawerOpen"
+      bordered
+      show-if-above
+      :width="150"
+      :breakpoint="700"
+      class="app-drawer text-white"
+    >
+      <q-scroll-area class="fit">
+        <div class="drawer-shell">
+          <div class="drawer-brand">
+            <div class="drawer-brand__logo">
+              <img :src="companyLogo" :alt="companyName" />
+            </div>
+            <div class="drawer-brand__text">
+              <div class="drawer-brand__title">{{ companyName }}</div>
+            </div>
+          </div>
+
+          <div class="drawer-eyebrow">Módulos</div>
+
+          <q-list dense class="drawer-menu">
+            <q-item
+              v-for="link in visibleLinks"
+              :key="link.title"
+              dense
+              clickable
+              :to="link.link"
+              exact
+              class="drawer-menu-link"
+              active-class="drawer-menu-link--active"
+            >
+              <q-item-section avatar class="drawer-menu-link__avatar">
+                <q-icon :name="link.icon" size="13px" />
+              </q-item-section>
+              <q-item-section>
+                <q-item-label class="drawer-menu-link__label" lines="1">{{ link.title }}</q-item-label>
+              </q-item-section>
+            </q-item>
+          </q-list>
+
+          <div class="drawer-footer">
+            <div>GLAG v{{ $version }}</div>
+            <div>© {{ new Date().getFullYear() }} GLAG</div>
+          </div>
+
+          <q-item clickable class="drawer-logout" @click="logout">
+            <q-item-section avatar class="drawer-menu-link__avatar">
+              <q-icon name="logout" />
+            </q-item-section>
+            <q-item-section>
+              <q-item-label>Salir</q-item-label>
+            </q-item-section>
+          </q-item>
+        </div>
+      </q-scroll-area>
+    </q-drawer>
+
+    <!-- PAGE -->
+    <q-page-container class="page-bg">
+      <router-view />
+    </q-page-container>
+  </q-layout>
+</template>
+
+<script setup>
+import { computed, getCurrentInstance, onMounted, ref } from 'vue'
+
+const { proxy } = getCurrentInstance()
+
+const leftDrawerOpen = ref(false)
+const cachedCompany = JSON.parse(localStorage.getItem('empresaGlag') || '{}')
+const companyName = ref(cachedCompany.nombre_empresa || 'GLAG')
+const companyLogo = ref(cachedCompany.logo_url || '/glag-logo.png')
+
+const links = [
+  { title: 'Inicio',    icon: 'dashboard',   link: '/',         can: null },
+  // Vitrina pública: la ve cualquier usuario del sistema y también los clientes sin sesión.
+  { title: 'Tienda virtual', icon: 'storefront', link: '/tienda', can: null },
+  { title: 'Usuarios',  icon: 'people',      link: '/usuarios', can: 'Ver Usuarios' },
+  { title: 'Productos', icon: 'inventory_2', link: '/productos', can: 'Ver Productos' },
+  { title: 'Nueva venta', icon: 'point_of_sale', link: '/ventas/nueva', can: 'Crear Ventas' },
+  { title: 'Ventas', icon: 'receipt_long', link: '/ventas', can: 'Ver Ventas' },
+  { title: 'Nueva compra', icon: 'add_business', link: '/compras/nueva', can: 'Crear Compras' },
+  { title: 'Compras', icon: 'shopping_bag', link: '/compras', can: 'Ver Compras' },
+  { title: 'Proveedores', icon: 'groups', link: '/proveedores', can: 'Ver Compras' },
+  { title: 'Almacenes', icon: 'warehouse', link: '/almacenes', can: 'Ver Almacenes' },
+  { title: 'Nueva baja', icon: 'remove_circle_outline', link: '/bajas/nueva', can: 'Crear Bajas' },
+  { title: 'Bajas', icon: 'delete_forever', link: '/bajas', can: 'Ver Bajas' },
+  { title: 'Por vencer', icon: 'schedule', link: '/productos/por-vencer', can: ['Ver Compras', 'Ver Almacenes'] },
+  { title: 'Vencidos', icon: 'event_busy', link: '/productos/vencidos', can: ['Ver Compras', 'Ver Almacenes'] },
+  { title: 'Configuración', icon: 'settings', link: '/configuracion', can: 'Gestionar Configuración' },
+]
+
+// `can` puede ser un permiso o una lista: con cualquiera de ellos el ítem se muestra.
+const visibleLinks = computed(() =>
+  links.filter(link => link.can === null ||
+    (Array.isArray(link.can) ? link.can.some(p => proxy.$store.hasPermission(p)) : proxy.$store.hasPermission(link.can)))
+)
+
+function toggleLeftDrawer () {
+  leftDrawerOpen.value = !leftDrawerOpen.value
+}
+
+onMounted(() => {
+  proxy.$axios.get('/configuracion').then(({ data }) => {
+    data.logo_url = data.logo ? `${proxy.$imgBase}/images/${data.logo}` : null
+    companyName.value = data.nombre_empresa || 'GLAG'
+    companyLogo.value = data.logo_url || '/glag-logo.png'
+    localStorage.setItem('empresaGlag', JSON.stringify(data))
+  })
+})
+
+function logout () {
+  proxy.$alert.dialog('¿Desea salir del sistema?').onOk(() => {
+    proxy.$axios.post('/logout').finally(() => {
+      proxy.$store.logout()
+      localStorage.removeItem('tokenGlag')
+      localStorage.removeItem('permissionsGlag')
+      localStorage.removeItem('user')
+      delete proxy.$axios.defaults.headers.common['Authorization']
+      proxy.$router.push('/login')
+    })
+  })
+}
+</script>
+
+<style>
+.app-drawer {
+  background: linear-gradient(180deg, #17406B 0%, #123152 55%, #0A1B2D 100%);
+  color: #ffffff;
+}
+
+.app-drawer,
+.app-drawer .q-drawer__content,
+.app-drawer .q-scrollarea,
+.app-drawer .q-scrollarea__container,
+.app-drawer .q-scrollarea__content {
+  background: linear-gradient(180deg, #17406B 0%, #123152 55%, #0A1B2D 100%) !important;
+}
+
+.drawer-shell {
+  min-height: 100%;
+  padding: 3px 3px 5px;
+}
+
+.drawer-brand {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 4px;
+  margin-bottom: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.drawer-brand__logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+
+.drawer-brand__logo img {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: contain;
+}
+
+.drawer-brand__title {
+  color: #ffffff;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drawer-brand__text {
+  min-width: 0;
+  line-height: 1.05;
+}
+
+.drawer-eyebrow {
+  padding: 1px 5px 1px;
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.drawer-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.drawer-menu-link {
+  min-height: 17px;
+  margin: 0 1px;
+  padding: 0 3px;
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.drawer-menu-link .q-item__section {
+  padding: 0;
+}
+
+.drawer-menu-link__avatar {
+  min-width: 16px;
+  padding-right: 5px !important;
+}
+
+.drawer-menu-link__label {
+  font-size: 9.5px;
+  font-weight: 650;
+  line-height: 1;
+}
+
+.drawer-menu-link--active {
+  background: linear-gradient(135deg, #1F5B96, #113050);
+  color: #ffffff !important;
+  box-shadow: inset 3px 0 0 #BFE3F5;
+}
+
+.drawer-footer {
+  padding: 3px 5px 2px;
+  margin-top: 3px;
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 8.5px;
+  line-height: 1.35;
+}
+
+.drawer-logout {
+  min-height: 18px;
+  margin: 2px 2px 0;
+  border-radius: 7px;
+  font-size: 9.5px;
+  color: #ffebee;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.app-header {
+  background: #ffffff;
+  border-bottom: 1px solid #DCE6EF;
+  color: #0E2740;
+}
+
+.app-header .q-toolbar {
+  min-height: 54px;
+}
+
+.header-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #EEF5FA;
+  border-radius: 99px;
+  padding: 4px 12px 4px 5px;
+}
+
+.page-bg {
+  background: #F6FAFD;
+}
+</style>
