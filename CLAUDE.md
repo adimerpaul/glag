@@ -30,6 +30,9 @@ vendor/bin/pint             # formateo (Laravel Pint, preset por defecto; no hay
 php artisan glag:limpiar-movimientos            # pide confirmación y muestra el conteo por tabla
 php artisan glag:limpiar-movimientos --force --stock --proveedores --keep-audits
 
+# Después de desplegar: comprobar que llegaron las fotos de productos
+php artisan glag:verificar-imagenes             # --limpiar pone foto=NULL en las que falten
+
 # Frontend
 cd front
 npm install
@@ -52,9 +55,12 @@ Los tests corren sobre SQLite en memoria (`back/phpunit.xml`) y usan `RefreshDat
 `DatabaseSeeder` está vacío a propósito. Todo el bootstrap de datos ocurre dentro de migraciones:
 
 - `2026_07_28_060000_load_initial_inventory.php` — crea permisos base y el usuario `admin` / `admin` con todos los permisos.
-- `2026_07_28_100000_create_glag_test_catalog.php` — borra y recrea el catálogo de prueba: 10 categorías × 10 productos (`GLAG-####`). `GlagCatalogTest` verifica esos 100/10 exactos. Existe **sólo para los tests**: en la base real ese catálogo fue reemplazado por los productos reales del negocio.
+- `2026_07_28_100000_create_glag_test_catalog.php` — catálogo de prueba `GLAG-####` (10 × 10). Quedó como paso intermedio histórico; la migración siguiente lo borra.
+- `2026_09_11_000000_load_real_catalog.php` — **el catálogo real**: 611 productos y 23 categorías leídos de `back/database/data/catalogo.json`. Borra el catálogo `GLAG-%` y hace **upsert por `codigo`**, así que es idempotente y no destructiva: nunca borra productos reales y a los que ya existen **no les toca `stock_inicial`** (ese valor lo mueven ventas, compras, bajas y almacenes; pisarlo desincronizaría el inventario). `GlagCatalogTest` contrasta la base contra el JSON, así que **el JSON es la fuente de verdad**: para cambiar el catálogo base se edita ese archivo, no la migración.
 
-> **No correr `migrate:fresh` contra la base real.** Esa migración vacía `productos` y `categorias` antes de insertar el catálogo de prueba, así que se llevaría puestos los ~611 productos reales. Para restaurarlos está `back/database/backups/catalogo_real.sql` (dump de `productos` + `categorias`, incluye las rutas de `foto`; los archivos viven en `back/public/images/productos/`).
+Como el catálogo entra por migración, un servidor nuevo queda listo con `php artisan migrate` — no hace falta importar ningún dump. Las fotos son rutas relativas a `back/public/images/` y esa carpeta **no** está en `.gitignore`, así que viajan con el deploy; después de desplegar, `php artisan glag:verificar-imagenes` dice si falta alguna.
+
+`back/database/backups/catalogo_real.sql` es un dump MySQL del mismo catálogo, sólo como respaldo de emergencia.
 - Las migraciones posteriores registran sus propios permisos (`Ver/Crear/Anular Ventas`, `Ver/Crear Compras`, `Gestionar Configuración`, `Ver Estadísticas`, `Ver Stock Inicial`, `Ver Precio Venta`, los de Almacén) y se los dan al `admin`.
 
 Al agregar una funcionalidad con permisos nuevos, seguir ese patrón: `Permission::firstOrCreate(...)` + `givePermissionTo` al admin dentro de la migración de la feature.

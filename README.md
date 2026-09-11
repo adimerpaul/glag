@@ -14,10 +14,25 @@ php artisan migrate
 php artisan serve
 ```
 
-La migración instala 100 productos de prueba en 10 categorías (`GLAG-####`). Usuario inicial:
+Las migraciones dejan la base lista: **611 productos en 23 categorías** (desde `back/database/data/catalogo.json`) y el usuario inicial:
 
 - Usuario: `admin`
 - Contraseña: `admin`
+
+## Despliegue en el servidor
+
+```bash
+git pull                       # o copiar los archivos, incluido back/public/images/
+cd back
+composer install --no-dev --optimize-autoloader
+php artisan migrate --force    # crea esquema, permisos, admin y los 611 productos
+php artisan glag:verificar-imagenes   # confirma que llegaron las 42 fotos
+php artisan config:cache && php artisan route:cache
+```
+
+`php artisan migrate` es seguro sobre una base que ya tiene ventas: el catálogo se
+carga con upsert por `codigo` y no modifica el stock de los productos existentes.
+**Nunca usar `migrate:fresh` en producción**, borra todo.
 
 Para vaciar ventas, compras, bajas, almacenes y lotes sin perder productos ni usuarios:
 
